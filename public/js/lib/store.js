@@ -5,6 +5,11 @@
  * yang dikirim ke server ini selain pada saat memanggil penyedia AI.
  */
 
+import { uid } from './utils.js';
+
+// Di-ekspor ulang supaya view lama yang mengimpor `uid` dari store tetap jalan.
+export { uid };
+
 const NS = 'sinema-ai-studio';
 const KEY_SECRET = `${NS}:keys`;
 const KEY_PROJECT = `${NS}:projects`;
