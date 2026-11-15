@@ -1,5 +1,13 @@
 # AGENTS.md
 
+## Repo & auto-sync
+
+- Remote: `https://github.com/alif121727/deskop-video` (branch `main`).
+- `scripts/auto-push.sh` commits and pushes every 10 minutes
+  (`INTERVAL=600`). Start it with
+  `nohup ./scripts/auto-push.sh > /tmp/auto-push.log 2>&1 &`,
+  stop it with `pkill -f auto-push.sh`. Logs go to `/tmp/auto-push.log`.
+
 ## What this project is
 
 Sinema AI Studio — a zero-dependency Node static server + vanilla-ESM browser app for
