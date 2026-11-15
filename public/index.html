@@ -76,7 +76,14 @@
             (event.filename || '') + (event.lineno ? ':' + event.lineno : ''));
         });
         window.addEventListener('unhandledrejection', function (event) {
-          show('Permintaan gagal', (event.reason && event.reason.message) || String(event.reason));
+          var reason = event.reason;
+          var message = (reason && reason.message) || String(reason);
+          // TypeError "Failed to fetch" berarti permintaan tidak sampai ke server
+          // (server mati atau koneksi putus), bukan kesalahan dari penyedia AI.
+          if (reason && reason.name === 'TypeError' && /failed to fetch/i.test(message)) {
+            message = 'Tidak bisa menghubungi server. Pastikan server masih berjalan, lalu muat ulang halaman.';
+          }
+          show('Permintaan gagal', message);
         });
       })();
     </script>

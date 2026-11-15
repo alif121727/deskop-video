@@ -8,11 +8,18 @@
 import { resolveKey, settings } from './store.js';
 
 async function post(path, payload) {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  let response;
+  try {
+    response = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // fetch hanya gagal seperti ini kalau permintaan tidak sampai ke server
+    // (server mati atau koneksi putus), bukan karena jawaban penyedia AI.
+    throw new Error('Tidak bisa menghubungi server. Pastikan server masih berjalan, lalu coba lagi.');
+  }
   const text = await response.text();
   let data;
   try {
@@ -72,11 +79,16 @@ export async function pollVideo(operationName) {
 
 export async function fetchVideoBlob(uri) {
   const key = resolveKey('gemini');
-  const response = await fetch('/api/ai/video/fetch', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ apiKey: key, uri }),
-  });
+  let response;
+  try {
+    response = await fetch('/api/ai/video/fetch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiKey: key, uri }),
+    });
+  } catch {
+    throw new Error('Tidak bisa menghubungi server untuk mengunduh video. Pastikan server masih berjalan, lalu coba lagi.');
+  }
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || 'Gagal mengunduh video.');

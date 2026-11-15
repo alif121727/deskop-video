@@ -53,6 +53,7 @@ const MIME = {
 /* ------------------------------------------------------------------ */
 
 function sendJson(res, status, payload) {
+  if (res.headersSent) return res.destroy();
   const body = JSON.stringify(payload);
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
@@ -60,6 +61,15 @@ function sendJson(res, status, payload) {
     'content-length': Buffer.byteLength(body),
   });
   res.end(body);
+}
+
+/** decodeURIComponent yang tidak melempar pada alamat rusak (mis. "/%"). */
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
 }
 
 function readJsonBody(req) {
@@ -329,11 +339,14 @@ async function handleApi(req, res, pathname) {
       const { apiKey, uri } = body;
       if (!apiKey || !uri) return sendJson(res, 400, { error: 'Kunci API dan URI video wajib diisi.' });
       const upstream = await geminiVideoFetch({ apiKey, uri });
+      // Baca seluruh isi lebih dulu. Kalau unduhan gagal di tengah jalan, error
+      // ditangani catch di bawah tanpa terlanjur mengirim header 200.
+      const arrayBuffer = await upstream.arrayBuffer();
       res.writeHead(200, {
         'content-type': upstream.headers.get('content-type') || 'video/mp4',
         'cache-control': 'no-store',
+        'content-length': arrayBuffer.byteLength,
       });
-      const arrayBuffer = await upstream.arrayBuffer();
       return res.end(Buffer.from(arrayBuffer));
     }
 
@@ -349,7 +362,12 @@ async function handleApi(req, res, pathname) {
 /* ------------------------------------------------------------------ */
 
 function serveStatic(req, res, pathname) {
-  const relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
+  const decoded = pathname === '/' ? 'index.html' : safeDecode(pathname);
+  if (decoded === null) {
+    res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end('Alamat berkas tidak valid.');
+  }
+  const relative = decoded.replace(/^\/+/, '');
   const target = path.join(PUBLIC_DIR, relative);
   const normalized = path.normalize(target);
 
@@ -391,8 +409,14 @@ function serveStatic(req, res, pathname) {
 }
 
 const server = http.createServer((req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  const pathname = url.pathname;
+  let pathname;
+  try {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    pathname = url.pathname;
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+    return res.end('Alamat permintaan tidak valid.');
+  }
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
@@ -403,12 +427,46 @@ const server = http.createServer((req, res) => {
     return res.end();
   }
 
-  if (pathname.startsWith('/api/')) return handleApi(req, res, pathname);
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    res.writeHead(405, { 'content-type': 'text/plain; charset=utf-8' });
-    return res.end('Metode tidak diizinkan.');
+  try {
+    if (pathname.startsWith('/api/')) {
+      // Tangani penolakan promise di sini supaya satu permintaan gagal tidak
+      // mematikan seluruh server (yang membuat browser menampilkan
+      // "Failed to fetch" pada permintaan berikutnya).
+      return handleApi(req, res, pathname).catch((error) => {
+        console.error('Permintaan API gagal:', error?.message || error);
+        sendJson(res, error?.status || 500, { error: error?.message || 'Terjadi kesalahan tak terduga.' });
+      });
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { 'content-type': 'text/plain; charset=utf-8' });
+      return res.end('Metode tidak diizinkan.');
+    }
+    return serveStatic(req, res, pathname);
+  } catch (error) {
+    console.error('Permintaan gagal:', error?.message || error);
+    if (!res.headersSent) {
+      res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('Terjadi kesalahan pada server.');
+    } else {
+      res.destroy();
+    }
   }
-  return serveStatic(req, res, pathname);
+});
+
+// Permintaan HTTP yang rusak (mis. baris permintaan cacat) tidak boleh
+// menjatuhkan proses; balas lalu tutup koneksi.
+server.on('clientError', (error, socket) => {
+  if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+  else socket.destroy();
+});
+
+// Jaring pengaman terakhir: catat, jangan matikan proses, supaya aplikasi
+// tetap melayani permintaan berikutnya.
+process.on('uncaughtException', (error) => {
+  console.error('uncaughtException:', error?.stack || error);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection:', reason?.stack || reason);
 });
 
 server.listen(PORT, HOST, () => {

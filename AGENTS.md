@@ -62,3 +62,20 @@ Modules import cleanly in Node (`node --check`, then dynamic `import()`); view m
 only fail on `document is not defined`, which is expected. Exercise behavior through the
 browser at the runtime host, and force a full reload (add a `?v=N` query) when a
 hash-only navigation does not pick up module edits.
+
+## Server must never die on one bad request
+
+A browser `fetch` that cannot reach the server throws `TypeError: Failed to fetch`, which
+the app surfaces as "Permintaan gagal" / "Request failed". That is almost always the
+server process having crashed, not a provider error. Keep these guards in `server.js`:
+
+- `serveStatic` uses `safeDecode` (a `decodeURIComponent` that returns `null` on malformed
+  input like `/%`) instead of the raw call, which used to throw `URIError` and kill the
+  process.
+- `/api/ai/video/fetch` reads `await upstream.arrayBuffer()` **before** `res.writeHead(200)`,
+  so a failure mid-download is handled by the `catch` without a second `writeHead`
+  (`ERR_HTTP_HEADERS_SENT` in a `catch` becomes an unhandled rejection and exits Node).
+- `http.createServer` wraps the router in `try/catch`, attaches `.catch()` to
+  `handleApi(...)`, handles `clientError`, and registers `uncaughtException` /
+  `unhandledRejection` handlers. Do not remove them.
+
