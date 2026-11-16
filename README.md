@@ -17,6 +17,16 @@ PORT=12001 npm start # port lain
 
 Buka `http://localhost:12000`. Tanpa dependensi: hanya Node.js 18+.
 
+## Menaruh di internet
+
+Aplikasi ini butuh proses Node yang hidup (server sekaligus jadi proksi agar bebas CORS),
+jadi **bukan** untuk GitHub Pages/Netlify/Vercel statis. Konfigurasi siap pakai untuk
+Render, Fly.io, Railway, Koyeb, dan VPS ada di repo ini — langkah lengkapnya di
+[`DEPLOY.md`](DEPLOY.md). Cara tercepat:
+
+1. [render.com](https://render.com) → **New +** → **Blueprint** → pilih repo ini.
+2. Render membaca `render.yaml` dan langsung memberi tautan permanen.
+
 ## Tujuh bagian
 
 | Bagian | Isinya |

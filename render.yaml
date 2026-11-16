@@ -1,0 +1,24 @@
+# Blueprint Render — Sinema AI Studio
+#
+# Cara pakai: buat "Blueprint" di dashboard Render lalu arahkan ke repo ini.
+# Render membaca berkas ini dan menyiapkan layanan web secara otomatis.
+# Dokumentasi: https://render.com/docs/blueprint-spec
+#
+# Rencana "free" cukup untuk mencoba. Catatan rencana gratis Render:
+# - Layanan tidur setelah ~15 menit tanpa trafik, lalu butuh ~1 menit bangun.
+# - Untuk menghindari tidur, pakai rencana berbayar atau layanan ping berkala.
+
+services:
+  - type: web
+    name: sinema-ai-studio
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeploy: true
+    buildCommand: echo 'Tanpa dependensi — tidak ada langkah build.'
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

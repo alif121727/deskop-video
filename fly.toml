@@ -1,0 +1,33 @@
+# Konfigurasi Fly.io — Sinema AI Studio
+#
+# Cara pakai:
+#   fly launch --no-deploy   # sekali, biar Fly membuat aplikasi
+#   fly deploy
+# Dokumentasi: https://fly.io/docs/reference/configuration/
+
+app = "sinema-ai-studio"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

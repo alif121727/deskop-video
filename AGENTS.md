@@ -56,6 +56,14 @@ dependencies without a strong reason — the project is deliberately dependency-
   `views/storyboard.js`).
 - `el()` takes `(tag, attrs, children)`; event handlers are `onclick` / `oninput` / `onchange`.
 
+## Deploy
+
+Aplikasi ini butuh proses Node yang hidup (server sekaligus proksi agar bebas CORS).
+Berkas siap pakai: `Dockerfile`, `render.yaml` (Render Blueprint), `fly.toml`, dan
+`railway.json`. Jangan pakai hosting statis (GitHub Pages/Netlify/Vercel) — endpoint
+`/api/ai/*` tidak akan ada dan kunci API bocor lewat browser. Langkah lengkap ada di
+[`DEPLOY.md`](DEPLOY.md).
+
 ## Verification without a test framework
 
 Modules import cleanly in Node (`node --check`, then dynamic `import()`); view modules
