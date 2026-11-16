@@ -64,6 +64,20 @@ Berkas siap pakai: `Dockerfile`, `render.yaml` (Render Blueprint), `fly.toml`, d
 `/api/ai/*` tidak akan ada dan kunci API bocor lewat browser. Langkah lengkap ada di
 [`DEPLOY.md`](DEPLOY.md).
 
+## AI provider notes
+
+- Text default is `gemini-3.5-flash` in `public/js/lib/store.js` and the
+  `textModels` list in `public/js/views/settings.js`. Older defaults
+  (`gemini-2.5-flash`, `gemini-2.5-pro`) now return HTTP 404 "no longer available
+  to new users" for fresh keys, so keep the default on a current model.
+- Video requires a Google AI Studio key with Veo access. Without it every Veo
+  model returns HTTP 404 for `predictLongRunning`. `providerError()` in
+  `server.js` turns 401/403/404/429/500/503 into a short human hint so users see
+  "needs Veo access" instead of a raw provider dump.
+- Check a key without the UI:
+  `curl "https://generativelanguage.googleapis.com/v1beta/models?key=$KEY"` lists
+  what the key can call.
+
 ## Verification without a test framework
 
 Modules import cleanly in Node (`node --check`, then dynamic `import()`); view modules

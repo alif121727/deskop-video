@@ -74,7 +74,7 @@ export const keys = {
 
 export const DEFAULT_SETTINGS = {
   provider: 'gemini',
-  textModel: 'gemini-2.5-flash',
+  textModel: 'gemini-3.5-flash',
   videoModel: 'veo-3.1-fast-generate-preview',
   openaiBaseUrl: '',
   language: 'en',

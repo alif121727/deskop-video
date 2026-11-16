@@ -113,7 +113,22 @@ async function providerError(response) {
     detail = '';
   }
   const trimmed = String(detail || '').slice(0, 800);
-  return `Penyedia AI menolak permintaan (HTTP ${response.status}). ${trimmed}`;
+
+  // Petunjuk bahasa manusia untuk kasus yang paling sering membingungkan.
+  const hints = {
+    400: 'Periksa kembali prompt dan gambar acuan.',
+    401: 'Kunci API tampaknya salah atau sudah kedaluwarsa. Buat kunci baru di Google AI Studio.',
+    403: 'Kunci API tidak punya izin untuk model ini. Pastikan penagihan aktif dan akses model dibuka.',
+    404:
+      'Model tidak tersedia untuk kunci ini. Untuk video, kunci Google AI Studio Anda perlu akses Veo (aktifkan penagihan lalu buka akses Veo). Untuk teks, ganti model di tab Pengaturan.',
+    429: 'Kuota kunci API habis. Tunggu sebentar atau periksa kuota di Google AI Studio.',
+    500: 'Penyedia AI sedang bermasalah. Coba lagi sebentar lagi.',
+    503: 'Model sedang sibuk. Coba lagi sebentar lagi atau pilih model lain di tab Pengaturan.',
+  };
+  const hint = hints[response.status];
+  return `Penyedia AI menolak permintaan (HTTP ${response.status}).${hint ? ` ${hint}` : ''}${
+    trimmed ? ` Detail: ${trimmed}` : ''
+  }`;
 }
 
 function assertHttpsUrl(raw, allowedHosts) {
@@ -460,8 +475,16 @@ server.on('clientError', (error, socket) => {
   else socket.destroy();
 });
 
-// Jaring pengaman terakhir: catat, jangan matikan proses, supaya aplikasi
-// tetap melayani permintaan berikutnya.
+// Galat saat bind (mis. port sudah dipakai) dilaporkan dengan jelas lalu keluar
+// dengan kode bukan nol, supaya pengawas tahu ini gagal dan tidak berputar cepat.
+server.on('error', (error) => {
+  console.error(`Tidak bisa memulai server di ${HOST}:${PORT} — ${error.code || error.message}`);
+  process.exit(1);
+});
+
+// Jaring pengaman terakhir untuk galat tak terduga pada permintaan: catat, jangan
+// matikan proses, supaya aplikasi tetap melayani permintaan berikutnya. (Galat
+// saat bind sudah ditangani di atas dengan keluar terkendali.)
 process.on('uncaughtException', (error) => {
   console.error('uncaughtException:', error?.stack || error);
 });
