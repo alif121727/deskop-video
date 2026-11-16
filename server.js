@@ -553,15 +553,17 @@ function serveStatic(req, res, pathname) {
 
   fs.stat(normalized, (error, stat) => {
     const filePath = !error && stat.isFile() ? normalized : path.join(PUBLIC_DIR, 'index.html');
-    fs.readFile(filePath, (readError, buffer) => {
-      if (readError) {
+    fs.stat(filePath, (statError, fileStat) => {
+      if (statError || !fileStat.isFile()) {
         res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
         return res.end('Berkas tidak ditemukan.');
       }
 
       const extension = path.extname(filePath).toLowerCase();
+      const contentType = MIME[extension] || 'application/octet-stream';
       const isCode = ['.js', '.mjs', '.css', '.html'].includes(extension);
-      const etag = `W/"${buffer.length.toString(16)}-${(stat?.mtimeMs || 0).toString(16)}"`;
+      const isMedia = ['.mp4', '.webm'].includes(extension);
+      const etag = `W/"${fileStat.size.toString(16)}-${fileStat.mtimeMs.toString(16)}"`;
 
       // Berkas kode selalu divalidasi ulang supaya perubahan langsung terlihat,
       // tanpa memaksa unduh ulang ketika isinya sebenarnya sama.
@@ -571,14 +573,46 @@ function serveStatic(req, res, pathname) {
       }
 
       const headers = {
-        'content-type': MIME[extension] || 'application/octet-stream',
+        'content-type': contentType,
         'cache-control': isCode ? 'no-cache' : 'public, max-age=600',
         etag,
+        'last-modified': fileStat.mtime.toUTCString(),
       };
-      if (stat?.mtime) headers['last-modified'] = stat.mtime.toUTCString();
 
-      res.writeHead(200, headers);
-      res.end(buffer);
+      // Media: dukung Range (HTTP 206) supaya pemutar bisa melompat/seek dan
+      // tidak perlu memuat seluruh berkas ke memori. Kirim aliran langsung.
+      if (isMedia) {
+        headers['accept-ranges'] = 'bytes';
+        const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || '').trim());
+        if (range) {
+          let start = range[1] === '' ? fileStat.size - Number(range[2]) : Number(range[1]);
+          let end = range[2] === '' || range[1] === '' ? fileStat.size - 1 : Number(range[2]);
+          if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= fileStat.size) {
+            res.writeHead(416, { 'content-range': `bytes */${fileStat.size}` });
+            return res.end();
+          }
+          end = Math.min(end, fileStat.size - 1);
+          res.writeHead(206, {
+            ...headers,
+            'content-range': `bytes ${start}-${end}/${fileStat.size}`,
+            'content-length': end - start + 1,
+          });
+          if (req.method === 'HEAD') return res.end();
+          return fs.createReadStream(filePath, { start, end }).pipe(res);
+        }
+        res.writeHead(200, { ...headers, 'content-length': fileStat.size });
+        if (req.method === 'HEAD') return res.end();
+        return fs.createReadStream(filePath).pipe(res);
+      }
+
+      fs.readFile(filePath, (readError, buffer) => {
+        if (readError) {
+          res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+          return res.end('Berkas tidak ditemukan.');
+        }
+        res.writeHead(200, headers);
+        res.end(buffer);
+      });
     });
   });
 }

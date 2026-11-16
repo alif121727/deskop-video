@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<title>Warung Go Digital — Tugas Video</title>
+<style>
+  @font-face { font-family: Inter; font-weight: 400; src: url('fonts/inter-400.woff2') format('woff2'); font-display: block; }
+  @font-face { font-family: Inter; font-weight: 600; src: url('fonts/inter-600.woff2') format('woff2'); font-display: block; }
+  @font-face { font-family: Inter; font-weight: 700; src: url('fonts/inter-700.woff2') format('woff2'); font-display: block; }
+  @font-face { font-family: Inter; font-weight: 800; src: url('fonts/inter-800.woff2') format('woff2'); font-display: block; }
+  @font-face { font-family: Inter; font-weight: 900; src: url('fonts/inter-900.woff2') format('woff2'); font-display: block; }
+
+  :root {
+    --bg: #0d1a12;
+    --bg-2: #0a1410;
+    --lime: #C6F36B;
+    --yellow: #F5B84A;
+    --teal: #6FD3D9;
+    --coral: #F29478;
+    --purple: #B6A6F2;
+    --ink: #EAF3E6;
+    --muted: #9DB3A4;
+    --line: rgba(234, 243, 230, .10);
+    --card: rgba(255, 255, 255, .045);
+    --card-2: rgba(255, 255, 255, .07);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 1920px; height: 1080px; overflow: hidden;
+    background: var(--bg);
+    font-family: Inter, system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  #stage { position: absolute; inset: 0; overflow: hidden; }
+
+  /* ---------- latar: cahaya ambient + grid + vignette + grain ---------- */
+  .ambient { position: absolute; inset: -20%; opacity: .9; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .30; }
+  .b1 { width: 1100px; height: 1100px; left: -220px; top: -320px; }
+  .b2 { width: 980px; height: 980px; right: -240px; bottom: -340px; }
+  .b3 { width: 760px; height: 760px; left: 42%; top: 24%; opacity: .22; }
+
+  .grid {
+    position: absolute; inset: 0; opacity: .5;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 96px 96px;
+    mask-image: radial-gradient(120% 90% at 50% 42%, #000 42%, transparent 88%);
+  }
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(120% 80% at 50% 45%, transparent 52%, rgba(0,0,0,.55) 100%);
+  }
+  .grain { position: absolute; inset: 0; opacity: .05; mix-blend-mode: overlay; }
+
+  /* ---------- dekorasi geometris ---------- */
+  .deco { position: absolute; pointer-events: none; }
+  .deco.ring { border-radius: 50%; border-style: solid; }
+  .deco.dot { border-radius: 50%; }
+  .plus { position: absolute; }
+  .plus::before, .plus::after { content: ''; position: absolute; background: currentColor; border-radius: 3px; }
+  .plus::before { left: 50%; top: 0; width: 4px; height: 100%; transform: translateX(-50%); }
+  .plus::after { top: 50%; left: 0; height: 4px; width: 100%; transform: translateY(-50%); }
+
+  /* ---------- kerangka adegan ---------- */
+  .scene { position: absolute; inset: 0; opacity: 0; will-change: opacity, transform; }
+  .pad { position: absolute; inset: 0; padding: 92px 120px; display: flex; }
+
+  .tag {
+    position: absolute; left: 120px; bottom: 74px; display: flex; align-items: center; gap: 14px;
+    font-weight: 700; letter-spacing: .16em; font-size: 19px; color: var(--muted);
+  }
+  .tag .num { color: var(--lime); font-weight: 900; }
+  .tag .bar { width: 46px; height: 3px; border-radius: 3px; background: currentColor; opacity: .5; }
+
+  /* bilah progres warna-warni */
+  #progressWrap { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: rgba(255,255,255,.05); }
+  #progress { height: 100%; width: 0;
+    background: linear-gradient(90deg, var(--lime), var(--teal), var(--yellow), var(--coral), var(--purple));
+    box-shadow: 0 0 22px rgba(198,243,107,.45);
+  }
+  #progressHead { position: absolute; top: 50%; width: 14px; height: 14px; margin-left: -7px; margin-top: -7px;
+    border-radius: 50%; background: #fff; box-shadow: 0 0 18px rgba(255,255,255,.9); }
+
+  /* ---------- kartu & komponen umum ---------- */
+  .card {
+    background: linear-gradient(180deg, var(--card-2), var(--card));
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    box-shadow: 0 30px 70px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 20px; border-radius: 999px;
+    background: rgba(255,255,255,.06); border: 1px solid var(--line);
+    font-weight: 700; font-size: 22px; color: var(--ink);
+  }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .eyebrow { font-weight: 800; letter-spacing: .22em; font-size: 20px; color: var(--muted); text-transform: uppercase; }
+  .h1 { font-weight: 900; line-height: .98; letter-spacing: -.02em; }
+  .h2 { font-weight: 900; font-size: 84px; line-height: 1.02; letter-spacing: -.02em; }
+  .lead { font-weight: 500; color: var(--muted); font-size: 28px; line-height: 1.5; }
+  .grad-lime { background: linear-gradient(100deg, var(--lime), var(--teal)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .grad-warm { background: linear-gradient(100deg, var(--yellow), var(--coral)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 12px; padding: 18px 30px; border-radius: 16px;
+    font-weight: 800; font-size: 24px; color: #0d1a12;
+    background: linear-gradient(180deg, #d9ff86, var(--lime));
+    box-shadow: 0 16px 36px rgba(198,243,107,.28);
+  }
+  .btn.teal { background: linear-gradient(180deg, #8ee6ea, var(--teal)); box-shadow: 0 16px 36px rgba(111,211,217,.28); }
+
+  /* ---------- 1. title card ---------- */
+  .titleWrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
+  .titleBig { font-weight: 900; font-size: 190px; line-height: .92; letter-spacing: -.035em; }
+  .titleBig .lime { color: var(--lime); }
+  .pill {
+    padding: 18px 40px; border-radius: 999px; font-weight: 800; font-size: 40px; color: #2a1408;
+    background: linear-gradient(180deg, #ffb59d, var(--coral));
+    box-shadow: 0 22px 50px rgba(242,148,120,.30);
+  }
+  .titleSub { font-weight: 600; font-size: 34px; color: var(--muted); letter-spacing: .04em; }
+  .ribbons { position: absolute; left: -10%; right: -10%; top: 0; bottom: 0; pointer-events: none; }
+  .ribbon {
+    position: absolute; left: -20%; width: 140%; padding: 22px 0; white-space: nowrap; overflow: hidden;
+    font-weight: 900; font-size: 34px; letter-spacing: .18em;
+  }
+  .ribbon span { display: inline-block; }
+  .ribbon.a { top: 132px; transform: rotate(-6deg); color: #0d1a12; background: linear-gradient(90deg, var(--lime), var(--teal)); }
+  .ribbon.b { bottom: 132px; transform: rotate(6deg); color: #0d1a12; background: linear-gradient(90deg, var(--yellow), var(--coral)); }
+
+  /* ---------- 2. logo ---------- */
+  .logoWrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 90px; }
+  .qrBox { position: relative; width: 380px; height: 380px; }
+  .qrRing { position: absolute; inset: -46px; border-radius: 50%; border: 5px dashed rgba(198,243,107,.55); }
+  .qrGrid { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(7, 1fr); gap: 10px; }
+  .qrGrid i { border-radius: 8px; opacity: 0; }
+  .logoText { display: flex; flex-direction: column; gap: 18px; }
+  .wordmark { font-weight: 900; font-size: 96px; letter-spacing: -.02em; display: flex; }
+  .wordmark b { display: inline-block; opacity: 0; }
+  .wordmark .go { color: var(--yellow); }
+
+  /* ---------- 3. tampilan utama ---------- */
+  .two { display: grid; grid-template-columns: 1.05fr .95fr; gap: 70px; align-items: center; width: 100%; }
+  .browser { border-radius: 24px; overflow: hidden; }
+  .browserBar { display: flex; align-items: center; gap: 10px; padding: 18px 22px; background: rgba(255,255,255,.05); border-bottom: 1px solid var(--line); }
+  .browserBar i { width: 14px; height: 14px; border-radius: 50%; display: block; }
+  .browserBody { padding: 40px 40px 46px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
+  .phone {
+    width: 430px; height: 760px; margin: 0 auto; border-radius: 46px; padding: 22px;
+    background: linear-gradient(160deg, #16241a, #0b1510);
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 50px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08);
+    position: relative;
+  }
+  .phone .notch { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); width: 130px; height: 26px; border-radius: 999px; background: #0a0f0b; }
+  .screen { margin-top: 40px; display: flex; flex-direction: column; gap: 18px; }
+  .menuItem { display: flex; justify-content: space-between; align-items: center; padding: 20px 22px; border-radius: 18px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
+  .menuItem .name { font-weight: 700; font-size: 25px; }
+  .menuItem .price { font-weight: 800; font-size: 24px; color: var(--lime); }
+  .sticker {
+    position: absolute; right: -46px; top: 96px; padding: 16px 24px; border-radius: 18px;
+    font-weight: 900; font-size: 26px; color: #2a1408;
+    background: linear-gradient(180deg, #ffe08a, var(--yellow));
+    box-shadow: 0 22px 44px rgba(245,184,74,.35);
+  }
+
+  /* ---------- 4. QRIS ---------- */
+  .qrisPhone { width: 420px; height: 740px; border-radius: 44px; padding: 26px; margin: 0 auto; position: relative;
+    background: linear-gradient(160deg, #16241a, #0b1510); border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 50px 90px rgba(0,0,0,.6); }
+  .qrisCard { margin-top: 46px; border-radius: 26px; background: #f3f7f2; padding: 34px; display: flex; flex-direction: column; align-items: center; gap: 20px; position: relative; overflow: hidden; }
+  .qrisCode { width: 300px; height: 300px; border-radius: 16px; background:
+      repeating-conic-gradient(#0d1a12 0% 25%, #ffffff 0% 50%) 0 0 / 26px 26px; border: 10px solid #fff; box-shadow: inset 0 0 0 2px #0d1a12; }
+  .scanline { position: absolute; left: 24px; right: 24px; height: 6px; border-radius: 6px; background: linear-gradient(90deg, transparent, var(--lime), transparent); box-shadow: 0 0 26px rgba(198,243,107,.9); }
+  .notif { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-radius: 20px; background: rgba(198,243,107,.12); border: 1px solid rgba(198,243,107,.35); }
+  .notif .ic { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--lime); color: #0d1a12; font-weight: 900; font-size: 26px; }
+  .ripple { position: absolute; border-radius: 50%; border: 3px solid rgba(198,243,107,.7); }
+  .bullet { display: flex; align-items: center; gap: 18px; font-size: 30px; font-weight: 600; }
+  .bullet .tick { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 900; color: #0d1a12; flex: none; }
+  .confetti { position: absolute; width: 12px; height: 18px; border-radius: 3px; }
+
+  /* ---------- 5. maps ---------- */
+  .map { position: relative; width: 100%; height: 620px; border-radius: 28px; overflow: hidden; background: #0f2016; border: 1px solid var(--line); }
+  .map .water { position: absolute; left: -8%; top: -20%; width: 46%; height: 150%; background: #123a44; border-radius: 46% 54% 40% 60%; }
+  .map .park { position: absolute; right: 4%; top: 8%; width: 30%; height: 42%; background: #16351f; border-radius: 42% 58% 55% 45%; }
+  .map .road { position: absolute; background: #d9c07a; border-radius: 6px; opacity: .85; }
+  .map .route { position: absolute; left: 12%; top: 62%; width: 62%; height: 6px; background: linear-gradient(90deg, var(--lime), var(--teal)); border-radius: 6px; transform-origin: left center; box-shadow: 0 0 22px rgba(198,243,107,.5); }
+  .pin { position: absolute; left: 70%; top: 46%; width: 54px; height: 54px; }
+  .pin i { position: absolute; inset: 0; background: var(--coral); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: 0 14px 30px rgba(0,0,0,.5); }
+  .pin u { position: absolute; left: 50%; top: 46%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: #fff; }
+  .pulse { position: absolute; left: 70%; top: 46%; width: 54px; height: 54px; border-radius: 50%; border: 3px solid var(--coral); }
+  .stars { display: flex; gap: 8px; font-size: 40px; }
+  .stars b { color: var(--yellow); }
+  .stars b.off { color: rgba(255,255,255,.18); }
+
+  /* ---------- 6. grafik keuangan ---------- */
+  .chart { display: flex; align-items: flex-end; gap: 18px; height: 380px; padding: 26px 20px 0; position: relative; }
+  .bar { flex: 1; border-radius: 12px 12px 6px 6px; transform-origin: bottom; }
+  .trend { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
+  .stat { padding: 30px 34px; border-radius: 24px; }
+  .stat .label { font-size: 22px; font-weight: 700; color: var(--muted); letter-spacing: .04em; }
+  .stat .value { font-weight: 900; font-size: 54px; letter-spacing: -.02em; margin-top: 8px; }
+  .miniRow { display: flex; gap: 34px; margin-top: 26px; font-weight: 700; font-size: 24px; color: var(--muted); }
+
+  /* ---------- 7. foto menu ---------- */
+  .photoGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; width: 100%; }
+  .photo { position: relative; height: 360px; border-radius: 22px; overflow: hidden; border: 10px solid #fff; box-shadow: 0 34px 70px rgba(0,0,0,.5); }
+  .photo .fill { position: absolute; inset: -6%; display: grid; place-items: center; font-size: 130px; }
+  .photo .tagPrice { position: absolute; left: 14px; bottom: 14px; padding: 10px 18px; border-radius: 12px; background: rgba(13,26,18,.85); color: var(--lime); font-weight: 800; font-size: 24px; }
+  .photo .play { position: absolute; right: 14px; top: 14px; width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.92); color: #0d1a12; font-size: 26px; }
+
+  /* ---------- 8. paket & fitur ---------- */
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  .plan { padding: 34px 30px; border-radius: 26px; position: relative; }
+  .plan .tier { font-weight: 800; font-size: 24px; letter-spacing: .1em; }
+  .plan .price { font-weight: 900; font-size: 62px; margin-top: 10px; letter-spacing: -.02em; }
+  .plan .price small { font-size: 24px; color: var(--muted); font-weight: 700; }
+  .plan .feat { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; font-size: 22px; color: var(--muted); font-weight: 600; }
+  .plan .badge { position: absolute; top: -18px; right: 24px; padding: 10px 18px; border-radius: 999px; font-weight: 900; font-size: 20px; color: #2a1408; background: var(--yellow); }
+  .checklist { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 30px; font-size: 26px; font-weight: 600; }
+  .checklist .tick { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; margin-right: 14px; font-weight: 900; color: #0d1a12; }
+  .cmp { width: 100%; border-collapse: collapse; font-size: 24px; }
+  .cmp th, .cmp td { padding: 16px 20px; text-align: left; border-bottom: 1px solid var(--line); }
+  .cmp th { color: var(--muted); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 19px; }
+  .cmp td.y { color: var(--lime); font-weight: 800; }
+  .cmp td.n { color: rgba(255,255,255,.25); font-weight: 800; }
+
+  /* ---------- 9. end card ---------- */
+  .endWrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; text-align: center; }
+  .rainbow { font-weight: 900; font-size: 130px; letter-spacing: -.03em; }
+  .rainbow b { display: inline-block; }
+  .contact { display: flex; gap: 26px; margin-top: 6px; font-weight: 700; font-size: 26px; color: var(--muted); }
+  .contact span { padding: 12px 22px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid var(--line); }
+
+  /* ---------- wipe transisi miring ---------- */
+  #wipe { position: absolute; inset: -30% -40%; pointer-events: none; opacity: 0; }
+  #wipe .p { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="ambient">
+    <div class="blob b1" id="blob1"></div>
+    <div class="blob b2" id="blob2"></div>
+    <div class="blob b3" id="blob3"></div>
+  </div>
+  <div class="grid"></div>
+  <div class="deco" id="deco"></div>
+
+  <!-- 1. TITLE CARD -->
+  <section class="scene" id="s1">
+    <div class="ribbons">
+      <div class="ribbon a"><span id="rbA"></span></div>
+      <div class="ribbon b"><span id="rbB"></span></div>
+    </div>
+    <div class="titleWrap">
+      <div class="eyebrow" id="t1eyebrow">Motion Graphics · 2026</div>
+      <h1 class="titleBig" id="t1big">Tugas <span class="lime">Video</span></h1>
+      <div class="pill" id="t1pill">Alif Fadilah Raditya</div>
+      <div class="titleSub" id="t1sub">Desain Web, Aplikasi &amp; Animasi</div>
+    </div>
+  </section>
+
+  <!-- 2. LOGO -->
+  <section class="scene" id="s2">
+    <div class="logoWrap">
+      <div class="qrBox">
+        <div class="qrRing" id="qrRing"></div>
+        <div class="qrGrid" id="qrGrid"></div>
+      </div>
+      <div class="logoText">
+        <div class="wordmark" id="wordmark"></div>
+        <div class="lead" id="tagline">Etalase digital untuk warung &amp; UMKM</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. TAMPILAN UTAMA -->
+  <section class="scene" id="s3">
+    <div class="pad">
+      <div class="two">
+        <div>
+          <div class="eyebrow" id="t3eyebrow">Etalase Digital</div>
+          <h2 class="h2" id="t3title" style="margin-top:18px">Warung Anda,<br /><span class="grad-lime">naik kelas digital.</span></h2>
+          <div class="chips">
+            <div class="chip" data-anim><span class="dot" style="background:var(--lime)"></span>30 mitra / 5 bulan</div>
+            <div class="chip" data-anim><span class="dot" style="background:var(--yellow)"></span>Rp 0 paket masuk</div>
+            <div class="chip" data-anim><span class="dot" style="background:var(--teal)"></span>1× kunjungan</div>
+          </div>
+        </div>
+        <div class="phone" id="t3phone">
+          <div class="notch"></div>
+          <div class="screen">
+            <div style="font-weight:800;font-size:30px">Warung Bu Sari</div>
+            <div class="menuItem" data-anim><span class="name">Nasi Goreng Spesial</span><span class="price">Rp 15.000</span></div>
+            <div class="menuItem" data-anim><span class="name">Es Teh Manis</span><span class="price">Rp 5.000</span></div>
+            <div class="menuItem" data-anim><span class="name">Ayam Bakar Madu</span><span class="price">Rp 22.000</span></div>
+            <div class="btn" style="justify-content:center;margin-top:8px" data-anim>Pesan lewat WhatsApp</div>
+          </div>
+          <div class="sticker" id="t3sticker">Gratis untuk mulai!</div>
+        </div>
+      </div>
+    </div>
+    <div class="tag"><span class="num">03</span><span class="bar"></span>ETALASE &amp; MENU</div>
+  </section>
+
+  <!-- 4. QRIS -->
+  <section class="scene" id="s4">
+    <div class="pad">
+      <div class="two">
+        <div class="qrisPhone" id="t4phone">
+          <div class="notch" style="position:absolute;left:50%;top:16px;transform:translateX(-50%);width:130px;height:26px;border-radius:999px;background:#0a0f0b"></div>
+          <div class="qrisCard">
+            <div class="qrisCode"></div>
+            <div style="font-weight:800;color:#0d1a12;font-size:24px">QRIS Warung Bu Sari</div>
+            <div class="scanline" id="scanline"></div>
+          </div>
+          <div style="margin-top:26px" id="notifHost"></div>
+        </div>
+        <div>
+          <div class="eyebrow">Pembayaran</div>
+          <h2 class="h2" style="margin-top:16px">Bayar cukup<br /><span class="grad-lime">pindai.</span></h2>
+          <div style="margin-top:34px;display:flex;flex-direction:column;gap:22px">
+            <div class="bullet" data-anim><span class="tick" style="background:var(--lime)">✓</span>QRIS milik mitra sendiri</div>
+            <div class="bullet" data-anim><span class="tick" style="background:var(--teal)">✓</span>Dana langsung ke rekening mitra</div>
+            <div class="bullet" data-anim><span class="tick" style="background:var(--yellow)">✓</span>Tanpa uang receh</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tag"><span class="num">04</span><span class="bar"></span>PEMBAYARAN QRIS</div>
+  </section>
+
+  <!-- 5. MAPS & RATING -->
+  <section class="scene" id="s5">
+    <div class="pad">
+      <div class="two" style="grid-template-columns:1.15fr .85fr">
+        <div class="map" id="t5map">
+          <div class="water"></div>
+          <div class="park"></div>
+          <div class="road" style="left:0;top:30%;width:100%;height:16px"></div>
+          <div class="road" style="left:0;top:72%;width:100%;height:12px"></div>
+          <div class="road" style="left:34%;top:0;width:14px;height:100%"></div>
+          <div class="road" style="left:66%;top:0;width:10px;height:100%"></div>
+          <div class="route" id="t5route"></div>
+          <div class="pulse" id="t5pulse"></div>
+          <div class="pin" id="t5pin"><i></i><u></u></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:26px">
+          <div class="card" style="padding:34px">
+            <div style="font-weight:800;font-size:30px">Warung Bu Sari</div>
+            <div style="color:var(--muted);font-weight:600;font-size:22px;margin-top:6px">Rating Google Maps</div>
+            <div class="stars" style="margin-top:18px" id="t5stars"></div>
+            <div style="font-weight:900;font-size:46px;margin-top:12px" id="t5score">0,0</div>
+          </div>
+          <div class="card" style="padding:30px;display:flex;align-items:center;gap:22px">
+            <div style="width:96px;height:96px;border-radius:18px;background:#fff;display:grid;place-items:center">
+              <div style="width:64px;height:64px;background:repeating-conic-gradient(#0d1a12 0% 25%,#fff 0% 50%) 0 0/14px 14px;border-radius:8px"></div>
+            </div>
+            <div>
+              <div style="font-weight:800;font-size:28px">QR ulasan bintang</div>
+              <div style="color:var(--muted);font-weight:600;font-size:21px">Tamu memindai, langsung memberi nilai</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tag"><span class="num">05</span><span class="bar"></span>PETA &amp; RATING</div>
+  </section>
+
+  <!-- 6. KEUANGAN -->
+  <section class="scene" id="s6">
+    <div class="pad">
+      <div style="width:100%;display:flex;flex-direction:column;gap:30px">
+        <div>
+          <div class="eyebrow">Perhitungan Keuangan</div>
+          <h2 class="h2" style="margin-top:14px">Angka yang <span class="grad-lime">terlihat jelas.</span></h2>
+        </div>
+        <div class="card" style="padding:34px">
+          <div class="chart" id="t6chart">
+            <svg class="trend" viewBox="0 0 1000 380" preserveAspectRatio="none">
+              <polyline id="t6line" points="" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".9" />
+            </svg>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
+          <div class="card stat"><div class="label">Pendapatan</div><div class="value" id="v1" style="color:var(--lime)">Rp 0</div></div>
+          <div class="card stat"><div class="label">Pengeluaran</div><div class="value" id="v2" style="color:var(--coral)">Rp 0</div></div>
+          <div class="card stat"><div class="label">Laba bersih</div><div class="value" id="v3" style="color:var(--yellow)">Rp 0</div></div>
+        </div>
+        <div class="miniRow">
+          <span>+182 pemindaian QR</span><span>·</span><span>64 pesan masuk</span><span>·</span><span>4,7 ★</span>
+          <span style="margin-left:auto;color:rgba(255,255,255,.35)">contoh data</span>
+        </div>
+      </div>
+    </div>
+    <div class="tag"><span class="num">06</span><span class="bar"></span>KEUANGAN</div>
+  </section>
+
+  <!-- 7. FOTO & VIDEO MENU -->
+  <section class="scene" id="s7">
+    <div class="pad" style="flex-direction:column;gap:34px">
+      <div>
+        <div class="eyebrow">Foto &amp; Video Menu</div>
+        <h2 class="h2" style="margin-top:14px">Menu yang <span class="grad-lime">menggugah.</span></h2>
+      </div>
+      <div class="photoGrid" id="t7grid"></div>
+    </div>
+    <div class="tag"><span class="num">07</span><span class="bar"></span>FOTO &amp; VIDEO</div>
+  </section>
+
+  <!-- 8. PAKET & FITUR -->
+  <section class="scene" id="s8">
+    <div class="pad" style="flex-direction:column;gap:30px">
+      <div class="eyebrow">Paket &amp; Fitur</div>
+      <div class="plans" id="t8plans"></div>
+      <div style="display:grid;grid-template-columns:1fr 1.05fr;gap:44px;align-items:start;margin-top:6px">
+        <div>
+          <h2 class="h2" style="font-size:64px">Satu kunjungan,<br /><span class="grad-warm">semua beres.</span></h2>
+          <div class="checklist" style="margin-top:26px" id="t8checks"></div>
+        </div>
+        <table class="cmp" id="t8table"></table>
+      </div>
+    </div>
+    <div class="tag"><span class="num">08</span><span class="bar"></span>PAKET &amp; FITUR</div>
+  </section>
+
+  <!-- 9. END CARD -->
+  <section class="scene" id="s9">
+    <div class="endWrap">
+      <div class="eyebrow" id="t9eyebrow">Terima kasih sudah menonton</div>
+      <div class="rainbow" id="t9name"></div>
+      <div class="titleSub">Desain Web, Aplikasi &amp; Animasi</div>
+      <div class="lead">Bisnis Digital · Universitas Amikom Purwokerto</div>
+      <div class="contact">
+        <span>warunggo.digital</span>
+        <span>wa.me/628123456789</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="vignette"></div>
+  <canvas class="grain" id="grain" width="240" height="135"></canvas>
+  <div id="wipe"><div class="p" id="wipeP"></div></div>
+  <div id="progressWrap"><div id="progress"></div><div id="progressHead"></div></div>
+</div>
+
+<script>
+/* ============================================================
+   Utilitas animasi deterministik (tanpa Math.random)
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const inv = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = (t) => 1 - Math.pow(1 - clamp(t), 3);
+const easeInOut = (t) => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeBack = (t) => { const c = 1.70158, c3 = c + 1; return 1 + c3 * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const nf = new Intl.NumberFormat('id-ID');
+
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const PALETTE = ['#C6F36B', '#F5B84A', '#6FD3D9', '#F29478', '#B6A6F2'];
+
+/* ---------- dekorasi geometris melayang (precomputed) ---------- */
+(function buildDeco() {
+  const host = $('deco'); const rnd = mulberry32(20261115);
+  for (let i = 0; i < 26; i++) {
+    const r = rnd();
+    const x = Math.round(rnd() * 1860 - 20), y = Math.round(rnd() * 1020 - 20);
+    const c = PALETTE[Math.floor(rnd() * PALETTE.length)];
+    if (r < .34) {
+      const d = document.createElement('div'); d.className = 'deco ring';
+      const s = 40 + Math.round(rnd() * 90);
+      d.style.cssText = `left:${x}px;top:${y}px;width:${s}px;height:${s}px;border-width:2px;border-color:${c};opacity:.28`;
+      d.dataset.speed = (.1 + rnd() * .3).toFixed(3); d.dataset.phase = rnd().toFixed(3);
+      host.appendChild(d);
+    } else if (r < .68) {
+      const d = document.createElement('div'); d.className = 'deco dot';
+      const s = 8 + Math.round(rnd() * 14);
+      d.style.cssText = `left:${x}px;top:${y}px;width:${s}px;height:${s}px;background:${c};opacity:.5`;
+      d.dataset.speed = (.15 + rnd() * .35).toFixed(3); d.dataset.phase = rnd().toFixed(3);
+      host.appendChild(d);
+    } else {
+      const d = document.createElement('div'); d.className = 'plus';
+      const s = 26 + Math.round(rnd() * 26);
+      d.style.cssText = `left:${x}px;top:${y}px;width:${s}px;height:${s}px;color:${c};opacity:.42`;
+      d.dataset.speed = (.12 + rnd() * .3).toFixed(3); d.dataset.phase = rnd().toFixed(3);
+      host.appendChild(d);
+    }
+  }
+  const nodes = Array.from(host.children);
+  window.__deco = nodes.map((n) => ({ n, speed: +n.dataset.speed, phase: +n.dataset.phase, y: parseFloat(n.style.top) }));
+})();
+
+/* ---------- grain (precomputed, statis) ---------- */
+(function buildGrain() {
+  const cv = $('grain'); const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(cv.width, cv.height); const rnd = mulberry32(7);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 120 + Math.floor(rnd() * 120);
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+})();
+
+/* ---------- 2. QR 7x7 ---------- */
+(function buildQR() {
+  const grid = $('qrGrid');
+  const finder = (r, c) => ((r < 2 && c < 2) || (r < 2 && c > 4) || (r > 4 && c < 2));
+  const rnd = mulberry32(99);
+  let k = 0;
+  for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) {
+    const cell = document.createElement('i');
+    const on = finder(r, c) || rnd() > .5;
+    const c1 = finder(r, c) ? PALETTE[(r + c) % 4] : PALETTE[k % 4];
+    cell.style.background = on ? c1 : 'rgba(255,255,255,.06)';
+    cell.dataset.i = k++;
+    grid.appendChild(cell);
+  }
+  window.__qrCells = Array.from(grid.children);
+})();
+
+/* ---------- 2. wordmark ---------- */
+(function buildWordmark() {
+  const host = $('wordmark'); const word = 'WarungGoDigital';
+  word.split('').forEach((ch, i) => {
+    const b = document.createElement('b'); b.textContent = ch;
+    if (word.slice(i, i + 2) === 'Go') b.className = 'go';
+    host.appendChild(b);
+  });
+  window.__letters = Array.from(host.children);
+})();
+
+/* ---------- 1. pita teks ---------- */
+(function buildRibbons() {
+  const text = 'WARUNG GO DIGITAL ★ QR MENU ★ KATALOG WHATSAPP ★ GOOGLE MAPS ★ QR ULASAN ★ ';
+  const a = $('rbA'), b = $('rbB');
+  a.textContent = text.repeat(6); b.textContent = text.repeat(6);
+  window.__rbA = a; window.__rbB = b;
+})();
+
+/* ---------- 3. tampilan utama ---------- */
+/* (statis di markup; animasi via renderAt) */
+
+/* ---------- 4. notifikasi + confetti ---------- */
+(function buildNotif() {
+  const host = $('notifHost');
+  const box = document.createElement('div'); box.className = 'notif'; box.id = 'notifBox';
+  box.innerHTML = '<div class="ic">✓</div><div><div style="font-weight:800;font-size:24px">Pembayaran diterima</div>' +
+    '<div style="color:var(--muted);font-weight:600;font-size:21px">Dua ribu rupiah</div></div>';
+  host.appendChild(box);
+  const ripple = document.createElement('div'); ripple.className = 'ripple'; ripple.id = 'ripple';
+  $('t4phone').appendChild(ripple);
+  const conf = document.createElement('div'); conf.id = 'confetti'; conf.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden';
+  const rnd = mulberry32(4242);
+  window.__confetti = [];
+  for (let i = 0; i < 46; i++) {
+    const p = document.createElement('div'); p.className = 'confetti';
+    p.style.background = PALETTE[i % PALETTE.length];
+    const data = { p, x: rnd() * 1920, delay: rnd() * .5, dur: 1.6 + rnd() * 1.6, rot: rnd() * 360, drift: (rnd() - .5) * 200 };
+    conf.appendChild(p); window.__confetti.push(data);
+  }
+  $('stage').appendChild(conf);
+})();
+
+/* ---------- 5. bintang ---------- */
+(function buildStars() {
+  const host = $('t5stars');
+  window.__stars = [];
+  for (let i = 0; i < 5; i++) { const b = document.createElement('b'); b.textContent = '★'; b.className = 'off'; host.appendChild(b); window.__stars.push(b); }
+})();
+
+/* ---------- 6. grafik ---------- */
+(function buildChart() {
+  const host = $('t6chart');
+  const rnd = mulberry32(31);
+  window.__bars = []; window.__barVals = [];
+  const n = 14;
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement('div'); d.className = 'bar';
+    const a = PALETTE[i % 3 === 0 ? 2 : i % 3 === 1 ? 0 : 1];
+    d.style.background = `linear-gradient(180deg, ${a}, ${a}55)`;
+    host.appendChild(d);
+    const v = .38 + rnd() * .58;
+    window.__bars.push(d); window.__barVals.push(v);
+  }
+  const pts = window.__barVals.map((v, i) => {
+    const x = (i + .5) * (1000 / n); const y = 380 - v * 340 - 20;
+    return [x, y];
+  });
+  window.__trendPts = pts;
+})();
+
+/* ---------- 7. foto menu ---------- */
+(function buildPhotos() {
+  const items = [
+    { e: '🍜', price: 'Rp 15.000', g: 'linear-gradient(140deg,#2b3f22,#0f1d13)', v: false },
+    { e: '🥤', price: 'Rp 5.000', g: 'linear-gradient(140deg,#1f3f44,#0d1a1c)', v: false },
+    { e: '🍗', price: 'Rp 22.000', g: 'linear-gradient(140deg,#43331c,#1b1409)', v: true },
+    { e: '🍛', price: 'Rp 18.000', g: 'linear-gradient(140deg,#3f2a24,#1a0f0c)', v: false },
+    { e: '🧋', price: 'Rp 8.000', g: 'linear-gradient(140deg,#2a2440,#120f1c)', v: true },
+    { e: '🍲', price: 'Rp 20.000', g: 'linear-gradient(140deg,#233f3a,#0c1a17)', v: false },
+  ];
+  const host = $('t7grid'); window.__photos = [];
+  for (const it of items) {
+    const card = document.createElement('div'); card.className = 'photo';
+    card.innerHTML = `<div class="fill" style="background:${it.g}">${it.e}</div>` +
+      `<div class="tagPrice">${it.price}</div>` + (it.v ? '<div class="play">▶</div>' : '');
+    host.appendChild(card); window.__photos.push(card);
+  }
+})();
+
+/* ---------- 8. paket & fitur ---------- */
+(function buildPlans() {
+  const plans = [
+    { tier: 'GRATIS', price: 'Rp 0', c: '#6FD3D9', feats: ['Etalase dasar', 'QR menu', 'Katalog WhatsApp'], badge: '' },
+    { tier: 'HEMAT', price: 'Rp 35.000', c: '#F5B84A', feats: ['Semua fitur Gratis', 'QRIS & Maps', 'QR ulasan bintang'], badge: 'Paling dicari' },
+    { tier: 'PLUS', price: 'Rp 100.000', c: '#B6A6F2', feats: ['Semua fitur Hemat', 'Foto & video menu', 'Laporan keuangan'], badge: '' },
+  ];
+  const host = $('t8plans'); window.__plans = [];
+  for (const p of plans) {
+    const d = document.createElement('div'); d.className = 'card plan';
+    d.innerHTML = (p.badge ? `<div class="badge">${p.badge}</div>` : '') +
+      `<div class="tier" style="color:${p.c}">${p.tier}</div>` +
+      `<div class="price">${p.price}<small> / sekali</small></div>` +
+      `<div class="feat">${p.feats.map((f) => `<span>· ${f}</span>`).join('')}</div>`;
+    host.appendChild(d); window.__plans.push(d);
+  }
+
+  const checks = ['Etalase digital', 'QR menu meja', 'Katalog WhatsApp', 'QRIS pembayaran', 'Google Maps', 'QR ulasan bintang', 'Foto & video menu', 'Laporan keuangan'];
+  const ch = $('t8checks'); window.__checks = [];
+  checks.forEach((c, i) => {
+    const d = document.createElement('div');
+    d.innerHTML = `<span class="tick" style="background:${PALETTE[i % PALETTE.length]}">✓</span>${c}`;
+    ch.appendChild(d); window.__checks.push(d);
+  });
+
+  const rows = [
+    ['Fitur', 'Gratis', 'Hemat', 'Plus'],
+    ['Etalase & QR menu', 'y', 'y', 'y'],
+    ['QRIS & Maps', 'n', 'y', 'y'],
+    ['Foto & video menu', 'n', 'n', 'y'],
+    ['Laporan keuangan', 'n', 'n', 'y'],
+  ];
+  const t = $('t8table'); window.__rows = [];
+  rows.forEach((r, ri) => {
+    const tr = document.createElement('tr');
+    r.forEach((cell, ci) => {
+      const td = document.createElement(ri === 0 ? 'th' : 'td');
+      td.textContent = ri === 0 ? cell : (cell === 'y' ? '✓' : cell === 'n' ? '—' : cell);
+      if (ri > 0 && ci > 0) td.className = cell === 'y' ? 'y' : cell === 'n' ? 'n' : '';
+      tr.appendChild(td);
+    });
+    t.appendChild(tr); window.__rows.push(tr);
+  });
+})();
+
+/* ---------- 9. nama warna-warni ---------- */
+(function buildName() {
+  const host = $('t9name'); const name = 'Alif Fadilah Raditya';
+  name.split('').forEach((ch, i) => {
+    const b = document.createElement('b'); b.textContent = ch === ' ' ? '\u00A0' : ch;
+    b.style.color = PALETTE[i % PALETTE.length]; host.appendChild(b);
+  });
+  window.__nameLetters = Array.from(host.children);
+})();
+
+/* ============================================================
+   renderAt(t): gambar keadaan pada detik t (deterministik)
+   ============================================================ */
+const SCENES = [
+  { id: 's1', a: 0, b: 3, hue: '#C6F36B' },
+  { id: 's2', a: 3, b: 8, hue: '#F5B84A' },
+  { id: 's3', a: 8, b: 15, hue: '#6FD3D9' },
+  { id: 's4', a: 15, b: 22, hue: '#C6F36B' },
+  { id: 's5', a: 22, b: 29, hue: '#F29478' },
+  { id: 's6', a: 29, b: 36, hue: '#B6A6F2' },
+  { id: 's7', a: 36, b: 43, hue: '#F5B84A' },
+  { id: 's8', a: 43, b: 55, hue: '#6FD3D9' },
+  { id: 's9', a: 55, b: 60, hue: '#C6F36B' },
+];
+const TOTAL = 60;
+
+function activeScene(t) {
+  for (let i = 0; i < SCENES.length; i++) {
+    if (t >= SCENES[i].a && t < SCENES[i].b) return i;
+  }
+  return t >= TOTAL ? SCENES.length - 1 : 0;
+}
+
+function fadeInOut(t, a, b, inD = .55, outD = .45) {
+  const inA = easeOut(inv(t, a, a + inD));
+  const outA = 1 - easeOut(inv(t, b - outD, b));
+  return clamp(inA * outA);
+}
+
+function setScene(t) {
+  const idx = activeScene(t);
+  SCENES.forEach((s, i) => {
+    const el = $(s.id);
+    const on = i === idx;
+    el.style.opacity = on ? '1' : '0';
+    el.style.zIndex = on ? '5' : '1';
+    if (on) el.style.transform = 'translateY(0)';
+  });
+  return idx;
+}
+
+/* --- latar ambient berganti nuansa per adegan --- */
+function setAmbient(t) {
+  const idx = activeScene(t); const hue = SCENES[idx].hue;
+  const blobs = [$('blob1'), $('blob2'), $('blob3')];
+  const cycle = [hue, PALETTE[(idx + 2) % PALETTE.length], PALETTE[(idx + 4) % PALETTE.length]];
+  blobs.forEach((b, i) => {
+    b.style.background = cycle[i];
+    const ph = t * .22 + i * 2.1;
+    b.style.transform = `translate(${Math.cos(ph) * 60}px, ${Math.sin(ph * .8) * 46}px) scale(${1 + Math.sin(ph * .5) * .06})`;
+  });
+  window.__deco.forEach((d) => {
+    const y = d.y + Math.sin(t * d.speed * 3.1 + d.phase * 6.28) * 22;
+    d.n.style.transform = `translateY(${y - d.y}px)`;
+  });
+}
+
+/* --- wipe transisi miring antar adegan --- */
+function setWipe(t) {
+  const w = $('wipe'), p = $('wipeP');
+  const idx = activeScene(t); const s = SCENES[idx];
+  const dt = t - s.a;
+  const enter = dt < .5 ? 1 - easeOut(dt / .5) : 0;      // sapuan masuk
+  const leave = t > s.b - .45 && idx < SCENES.length - 1 ? easeOut(inv(t, s.b - .45, s.b)) : 0;
+  const k = Math.max(enter, leave);
+  if (k <= .001) { w.style.opacity = '0'; return; }
+  w.style.opacity = String(k);
+  const skew = -14;
+  const x = (1 - k) * 130 - (enter > 0 ? 0 : 0) + (leave > 0 ? k * 130 : 0);
+  p.style.transform = `skewX(${skew}deg) translateX(${x}%)`;
+  p.style.background = `linear-gradient(100deg, ${SCENES[idx].hue}, ${PALETTE[(idx + 1) % PALETTE.length]})`;
+}
+
+/* --- bilah progres --- */
+function setProgress(t) {
+  const r = clamp(t / TOTAL);
+  $('progress').style.width = (r * 100) + '%';
+  $('progressHead').style.left = (r * 100) + '%';
+  $('progressHead').style.opacity = String(clamp(inv(t, .2, .8)));
+}
+
+/* --- adegan 1 --- */
+function scene1(t) {
+  const s = SCENES[0]; const dt = t - s.a;
+  $('t1eyebrow').style.opacity = String(easeOut(inv(dt, 0, .5)));
+  const big = easeBack(inv(dt, .15, .95));
+  $('t1big').style.transform = `translateY(${(1 - big) * 40}px) scale(${lerp(.94, 1, clamp(big))})`;
+  $('t1big').style.opacity = String(easeOut(inv(dt, .15, .8)));
+  $('t1pill').style.transform = `translateY(${(1 - easeOut(inv(dt, .55, 1.2))) * 30}px) scale(${lerp(.9, 1, easeOut(inv(dt, .55, 1.2)))})`;
+  $('t1pill').style.opacity = String(easeOut(inv(dt, .55, 1.15)));
+  $('t1sub').style.opacity = String(easeOut(inv(dt, .85, 1.5)));
+  const out = 1 - easeOut(inv(dt, s.b - s.a - .4, s.b - s.a));
+  const base = out;
+  ['t1eyebrow', 't1big', 't1pill', 't1sub'].forEach((id) => { $(id).style.opacity = String(+$(id).style.opacity * base); });
+  const sp = 90;
+  window.__rbA.style.transform = `translateX(${-(t * sp) % 1200}px)`;
+  window.__rbB.style.transform = `translateX(${(t * sp - 1200) % 1200}px)`;
+  window.__rbA.style.opacity = window.__rbB.style.opacity = String(easeOut(inv(dt, .2, .8)) * base);
+}
+
+/* --- adegan 2 --- */
+function scene2(t) {
+  const s = SCENES[1]; const dt = t - s.a;
+  $('qrRing').style.transform = `rotate(${t * 34}deg)`;
+  $('qrRing').style.opacity = String(easeOut(inv(dt, .1, .9)));
+  window.__qrCells.forEach((cell, i) => {
+    const at = .2 + (i / window.__qrCells.length) * 1.3;
+    const k = easeOut(inv(dt, at, at + .28));
+    cell.style.opacity = String(k);
+    cell.style.transform = `scale(${lerp(.4, 1, k)})`;
+  });
+  window.__letters.forEach((b, i) => {
+    const at = 1.5 + i * .085;
+    const k = easeOut(inv(dt, at, at + .3));
+    b.style.opacity = String(k);
+    b.style.transform = `translateY(${(1 - k) * 34}px) rotate(${(1 - k) * 6}deg)`;
+  });
+  $('tagline').style.opacity = String(easeOut(inv(dt, 3.1, 3.9)));
+  $('tagline').style.transform = `translateY(${(1 - easeOut(inv(dt, 3.1, 3.9))) * 22}px)`;
+}
+
+/* --- adegan 3 --- */
+function scene3(t) {
+  const s = SCENES[2]; const dt = t - s.a;
+  $('t3eyebrow').style.opacity = String(easeOut(inv(dt, 0, .4)));
+  $('t3title').style.opacity = String(easeOut(inv(dt, .1, .8)));
+  $('t3title').style.transform = `translateY(${(1 - easeOut(inv(dt, .1, .8))) * 30}px)`;
+  const chips = document.querySelectorAll('#s3 .chip');
+  chips.forEach((c, i) => {
+    const k = easeOut(inv(dt, .6 + i * .22, 1.05 + i * .22));
+    c.style.opacity = String(k);
+    c.style.transform = `translateY(${(1 - k) * 26}px)`;
+  });
+  const items = document.querySelectorAll('#s3 .menuItem, #s3 .btn');
+  items.forEach((c, i) => {
+    const k = easeOut(inv(dt, .5 + i * .16, .95 + i * .16));
+    c.style.opacity = String(k);
+    c.style.transform = `translateX(${(1 - k) * 40}px)`;
+  });
+  const float = Math.sin(t * 1.6) * 10;
+  $('t3phone').style.transform = `perspective(1400px) rotateY(-15deg) rotateX(5deg) translateY(${(1 - easeOut(inv(dt, .2, 1.3))) * 60 + float}px)`;
+  const st = Math.sin(t * 5) * 4;
+  $('t3sticker').style.transform = `rotate(${-6 + st}deg)`;
+  $('t3sticker').style.opacity = String(easeOut(inv(dt, 1.4, 2)));
+}
+
+/* --- adegan 4 --- */
+function scene4(t) {
+  const s = SCENES[3]; const dt = t - s.a;
+  $('t4phone').style.transform = `perspective(1400px) rotateY(12deg) rotateX(4deg) translateY(${(1 - easeOut(inv(dt, .1, 1.1))) * 50}px)`;
+  const scan = (Math.sin(dt * 2.2 - Math.PI / 2) * .5 + .5);
+  $('scanline').style.top = `${lerp(24, 320, scan)}px`;
+  $('scanline').style.opacity = String(clamp(inv(dt, .2, .6)));
+  const nk = easeBack(inv(dt, 2.1, 2.8));
+  const box = $('notifBox');
+  box.style.opacity = String(clamp(inv(dt, 2.1, 2.5)));
+  box.style.transform = `translateY(${(1 - clamp(nk)) * 34}px) scale(${lerp(.9, 1, clamp(nk))})`;
+  const rp = clamp(inv(dt, 2.2, 4.4));
+  $('ripple').style.opacity = String(rp > 0 && rp < 1 ? (1 - rp) * .8 : 0);
+  $('ripple').style.left = '50%'; $('ripple').style.top = '46%';
+  $('ripple').style.width = $('ripple').style.height = `${60 + rp * 420}px`;
+  $('ripple').style.marginLeft = $('ripple').style.marginTop = `${-(30 + rp * 210)}px`;
+  const bullets = document.querySelectorAll('#s4 .bullet');
+  bullets.forEach((c, i) => {
+    const k = easeOut(inv(dt, .7 + i * .3, 1.2 + i * .3));
+    c.style.opacity = String(k); c.style.transform = `translateX(${(1 - k) * 44}px)`;
+  });
+  // confetti
+  const cStart = 2.2;
+  window.__confetti.forEach((c) => {
+    const lt = dt - c.delay - cStart;
+    if (lt <= 0 || lt > c.dur) { c.p.style.opacity = '0'; return; }
+    const k = lt / c.dur;
+    c.p.style.opacity = String(1 - k);
+    c.p.style.transform = `translate(${c.x + c.drift * k}px, ${-60 + k * 1180}px) rotate(${c.rot + k * 720}deg)`;
+  });
+}
+
+/* --- adegan 5 --- */
+function scene5(t) {
+  const s = SCENES[4]; const dt = t - s.a;
+  $('t5map').style.opacity = String(easeOut(inv(dt, 0, .6)));
+  $('t5map').style.transform = `scale(${lerp(1.04, 1, easeOut(inv(dt, 0, 1)))})`;
+  const routeK = easeOut(inv(dt, .5, 1.8));
+  $('t5route').style.transform = `scaleX(${routeK})`;
+  const drop = inv(dt, 1.7, 2.3);
+  const bounce = drop < 1 ? easeOut(drop) : 1 + Math.sin((dt - 2.3) * 14) * .06 * (1 - clamp(inv(dt, 2.3, 3.4)));
+  $('t5pin').style.transform = `translateY(${(1 - bounce) * -220}px)`;
+  $('t5pin').style.opacity = String(clamp(inv(dt, 1.6, 2)));
+  const pk = (dt - 2.3) % 1.4 / 1.4;
+  $('t5pulse').style.opacity = String(pk > 0 && dt > 2.3 ? (1 - pk) * .8 : 0);
+  $('t5pulse').style.transform = `scale(${1 + pk * 2.4})`;
+  // bintang
+  const target = 4.7;
+  const full = Math.floor(target);
+  window.__stars.forEach((b, i) => {
+    const at = 2.4 + i * .3;
+    const k = easeOut(inv(dt, at, at + .3));
+    b.style.opacity = String(lerp(.15, 1, k));
+    const filled = i < full || (i === full && (target % 1) > .3);
+    b.className = filled && k > .5 ? '' : 'off';
+  });
+  const sk = easeOut(inv(dt, 3.6, 4.6));
+  $('t5score').textContent = (target * sk).toFixed(1).replace('.', ',');
+}
+
+/* --- adegan 6 --- */
+function scene6(t) {
+  const s = SCENES[5]; const dt = t - s.a;
+  const grow = inv(dt, .4, 2.4);
+  window.__bars.forEach((b, i) => {
+    const at = .4 + i * .12;
+    const k = easeOut(inv(dt, at, at + .7));
+    const v = window.__barVals[i];
+    b.style.height = `${Math.max(6, v * 340 * k)}px`;
+    b.style.opacity = String(lerp(.4, 1, k));
+  });
+  const lineK = easeOut(inv(dt, 2.2, 3.6));
+  const pts = window.__trendPts;
+  const upto = lineK * (pts.length - 1);
+  const shown = pts.filter((_, i) => i <= upto);
+  if (upto > 0 && shown.length) {
+    const last = pts[Math.ceil(upto)] || pts[pts.length - 1];
+    const prev = pts[Math.floor(upto)] || pts[0];
+    const f = upto - Math.floor(upto);
+    const lastX = lerp(prev[0], last[0], f), lastY = lerp(prev[1], last[1], f);
+    const str = shown.map((p, i) => `${i === shown.length - 1 ? lastX : p[0]},${i === shown.length - 1 ? lastY : p[1]}`).join(' ');
+    $('t6line').setAttribute('points', str);
+  }
+  const vals = [[4250000, 'v1'], [2870000, 'v2'], [1380000, 'v3']];
+  vals.forEach(([target, id], i) => {
+    const k = easeOut(inv(dt, 1 + i * .25, 2.2 + i * .25));
+    $(id).textContent = 'Rp ' + nf.format(Math.round(target * k));
+  });
+}
+
+/* --- adegan 7 --- */
+function scene7(t) {
+  const s = SCENES[6]; const dt = t - s.a;
+  window.__photos.forEach((card, i) => {
+    const at = .2 + i * .18;
+    const k = easeOut(inv(dt, at, at + .7));
+    const rot = (i % 2 === 0 ? -3 : 3) + Math.sin(t * 1.2 + i) * 1.2;
+    card.style.opacity = String(k);
+    card.style.transform = `translateY(${(1 - k) * 50}px) rotate(${rot * k}deg) scale(${lerp(.94, 1, k)})`;
+    const zoom = 1 + inv(dt, 0, 6) * .08;
+    const fill = card.querySelector('.fill');
+    fill.style.transform = `scale(${zoom})`;
+  });
+}
+
+/* --- adegan 8 --- */
+function scene8(t) {
+  const s = SCENES[7]; const dt = t - s.a;
+  window.__plans.forEach((card, i) => {
+    const at = .2 + i * .2;
+    const k = easeBack(inv(dt, at, at + .8));
+    card.style.opacity = String(clamp(inv(dt, at, at + .4)));
+    card.style.transform = `translateY(${(1 - clamp(k)) * 60}px) rotate(${(i - 1) * 1.2}deg)`;
+  });
+  window.__checks.forEach((c, i) => {
+    const k = easeOut(inv(dt, 2.2 + i * .12, 2.7 + i * .12));
+    c.style.opacity = String(k); c.style.transform = `translateX(${(1 - k) * 30}px)`;
+  });
+  window.__rows.forEach((tr, i) => {
+    const k = easeOut(inv(dt, 3 + i * .18, 3.5 + i * .18));
+    tr.style.opacity = String(k);
+  });
+}
+
+/* --- adegan 9 --- */
+function scene9(t) {
+  const s = SCENES[8]; const dt = t - s.a;
+  $('t9eyebrow').style.opacity = String(easeOut(inv(dt, 0, .5)));
+  window.__nameLetters.forEach((b, i) => {
+    const at = .4 + i * .06;
+    const k = easeBack(inv(dt, at, at + .5));
+    b.style.opacity = String(clamp(inv(dt, at, at + .3)));
+    b.style.transform = `translateY(${(1 - clamp(k)) * 40}px) scale(${lerp(.8, 1, clamp(k))})`;
+  });
+  const rest = document.querySelectorAll('#s9 .titleSub, #s9 .lead, #s9 .contact');
+  rest.forEach((c, i) => {
+    const k = easeOut(inv(dt, 2 + i * .3, 2.6 + i * .3));
+    c.style.opacity = String(k); c.style.transform = `translateY(${(1 - k) * 24}px)`;
+  });
+  const cStart = .4;
+  window.__confetti.forEach((c) => {
+    const lt = dt - c.delay - cStart;
+    if (lt <= 0 || lt > c.dur + .6) { c.p.style.opacity = '0'; return; }
+    const k = clamp(lt / c.dur);
+    c.p.style.opacity = String(1 - k);
+    c.p.style.transform = `translate(${c.x + c.drift * k}px, ${-80 + k * 1240}px) rotate(${c.rot + k * 720}deg)`;
+  });
+  // memudar di akhir
+  const fadeOut = 1 - easeOut(inv(t, TOTAL - .9, TOTAL - .05));
+  $('s9').style.opacity = String(fadeOut);
+}
+
+const SCENE_FN = { s1: scene1, s2: scene2, s3: scene3, s4: scene4, s5: scene5, s6: scene6, s7: scene7, s8: scene8, s9: scene9 };
+
+window.renderAt = function (t) {
+  setAmbient(t);
+  const idx = setScene(t);
+  const key = SCENES[idx].id;
+  SCENE_FN[key](t);
+  setWipe(t);
+  setProgress(t);
+};
+
+window.TOTAL = TOTAL;
+window.renderAt(0);
+</script>
+</body>
+</html>
