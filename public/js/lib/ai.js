@@ -53,13 +53,16 @@ export async function generateText({ system, prompt, provider, model, temperatur
   return data.text;
 }
 
-/** Mulai pembuatan video. Kembalikan nama operasi untuk dipantau. */
+/** Mulai pembuatan video. Kembalikan { operationName, provider } untuk dipantau. */
 export async function startVideo(payload) {
   const s = settings.get();
-  const key = resolveKey('gemini');
-  if (!key) throw new Error('Pembuatan video butuh kunci Google AI Studio. Buka tab Pengaturan.');
+  const provider = payload.provider || s.videoProvider || 'gemini';
+  const key = provider === 'gemini' ? resolveKey('gemini') : null;
+  if (provider === 'gemini' && !key) {
+    throw new Error('Pembuatan video butuh kunci Google AI Studio. Buka tab Pengaturan.');
+  }
   const data = await post('/api/ai/video/start', {
-    provider: 'gemini',
+    provider,
     apiKey: key,
     model: payload.model || s.videoModel,
     prompt: payload.prompt,
@@ -69,12 +72,19 @@ export async function startVideo(payload) {
     negativePrompt: payload.negativePrompt,
     image: payload.image,
   });
-  return data.operationName;
+  return { operationName: data.operationName, provider: data.provider || provider };
 }
 
-export async function pollVideo(operationName) {
+/** Daftar model yang bisa dipanggil kunci ini, dipisah teks dan video. */
+export async function listModels() {
   const key = resolveKey('gemini');
-  return post('/api/ai/video/poll', { apiKey: key, operationName });
+  if (!key) throw new Error('Kunci API belum diisi.');
+  return post('/api/ai/models', { apiKey: key });
+}
+
+export async function pollVideo(operationName, provider = 'gemini') {
+  const key = provider === 'gemini' ? resolveKey('gemini') : null;
+  return post('/api/ai/video/poll', { apiKey: key, operationName, provider });
 }
 
 export async function fetchVideoBlob(uri) {
@@ -100,26 +110,28 @@ export async function fetchVideoBlob(uri) {
  * Jalankan pembuatan video sampai selesai.
  * onProgress dipanggil dengan status teks supaya antarmuka bisa menampilkan tahap.
  */
-export async function generateVideo({ prompt, aspectRatio, durationSeconds, resolution, negativePrompt, image, onProgress, signal }) {
-  const operationName = await startVideo({ prompt, aspectRatio, durationSeconds, resolution, negativePrompt, image });
+export async function generateVideo({ prompt, aspectRatio, durationSeconds, resolution, negativePrompt, image, provider, onProgress, signal }) {
+  const started = await startVideo({ prompt, aspectRatio, durationSeconds, resolution, negativePrompt, image, provider });
+  const operationName = started.operationName;
+  const videoProvider = started.provider;
   onProgress?.('Pembuatan dimulai. Model sedang menyiapkan klip pertama...');
 
-  const started = Date.now();
+  const startTime = Date.now();
   const timeoutMs = 8 * 60 * 1000;
 
   while (true) {
     if (signal?.aborted) throw new Error('Pembuatan dibatalkan.');
-    if (Date.now() - started > timeoutMs) throw new Error('Waktu tunggu habis. Coba lagi dengan prompt yang lebih pendek.');
+    if (Date.now() - startTime > timeoutMs) throw new Error('Waktu tunggu habis. Coba lagi dengan prompt yang lebih pendek.');
 
     await new Promise((resolve) => setTimeout(resolve, 6000));
-    const result = await pollVideo(operationName);
+    const result = await pollVideo(operationName, videoProvider);
 
     if (result.failure) throw new Error(result.failure);
     if (result.done) {
       if (!result.asset) throw new Error('Operasi selesai tetapi tidak ada video yang dikembalikan.');
       return result.asset;
     }
-    const seconds = Math.round((Date.now() - started) / 1000);
+    const seconds = Math.round((Date.now() - startTime) / 1000);
     onProgress?.(`Masih diproses... (${seconds} detik)`);
   }
 }

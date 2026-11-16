@@ -76,6 +76,7 @@ export const DEFAULT_SETTINGS = {
   provider: 'gemini',
   textModel: 'gemini-3.5-flash',
   videoModel: 'veo-3.1-fast-generate-preview',
+  videoProvider: 'hf',
   openaiBaseUrl: '',
   language: 'en',
   rememberKeys: false,

@@ -101,3 +101,20 @@ server process having crashed, not a provider error. Keep these guards in `serve
   `handleApi(...)`, handles `clientError`, and registers `uncaughtException` /
   `unhandledRejection` handlers. Do not remove them.
 
+
+## Free video fallback (no Veo access)
+
+Accounts without Veo billing still get video. Settings has a "Sumber video" choice:
+
+- `hf` (default) — Wan 2.2 on a public Hugging Face Space, no key required.
+  `server.js` calls the Space's Gradio REST API: `POST /gradio_api/call/generate_video`
+  returns an `event_id`, then `GET /gradio_api/call/generate_video/<event_id>` streams
+  Server-Sent Events ending in `event: complete` (or `event: error`).
+- `gemini` — Google Veo, needs a key with Veo access.
+
+Public Spaces share an anonymous ZeroGPU quota. When it is exhausted the SSE stream
+returns `event: error` with `data: null`; `hfVideoPoll` maps that to a clear "service is
+busy, try again or switch to Veo" message. A successful run may fail minutes later for
+that reason — it is the quota, not the code. Override the Space with `HF_VIDEO_SPACE`
+(hostname only, e.g. `other-space.hf.space`) when the default is saturated; add that host
+to `ALLOWED_VIDEO_HOSTS` automatically via the same env var.

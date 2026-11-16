@@ -465,7 +465,7 @@ function buildVideoPanel(template) {
       el('div', {}, [
         el('div', { class: 'panel__title' }, ['Buat video']),
         el('p', { class: 'panel__note' }, [
-          'Butuh kunci Google AI Studio dengan akses Veo. Hasil disimpan di server penyedia selama dua hari.',
+          'Sumber video diatur di tab Pengaturan: pilih "Gratis" (Wan 2.2, tanpa kunci) atau "Google Veo" (butuh kunci berakses Veo).',
         ]),
       ]),
     ])
@@ -586,13 +586,14 @@ async function runGeneration(button, status, videoHost) {
       image: state.draft.referenceImage
         ? { data: state.draft.referenceImage.data, mimeType: state.draft.referenceImage.mimeType }
         : undefined,
+      provider: settings.get().videoProvider || 'hf',
       onProgress: (message) => {
         clear(status).append(el('span', { class: 'loader' }), ` ${message}`);
       },
     });
 
     state.draft.videoAsset = asset;
-    clear(status).textContent = 'Selesai. Pratinjau di bawah, unduh sebelum dua hari.';
+    clear(status).textContent = 'Selesai. Pratinjau di bawah, unduh sekarang.';
     clear(videoHost);
     videoHost.append(buildVideoPreview(asset));
     toast('Video selesai dibuat.', 'success');

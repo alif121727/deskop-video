@@ -8,7 +8,7 @@
 import { settings, keys, resolveKey, rememberKey, session } from '../lib/store.js';
 import { el, qs, toast } from '../lib/utils.js';
 import { navigate, refreshKeyStatus } from '../app.js';
-import { generateText } from '../lib/ai.js';
+import { generateText, listModels } from '../lib/ai.js';
 
 const PROVIDERS = [
   {
@@ -154,12 +154,32 @@ function buildKeyPanel(current) {
         el('option', { value: model, selected: current.videoModel === model }, [model])
       );
     }
+
+    const sourceSelect = el('select', {
+      onchange: (event) => settings.set({ videoProvider: event.target.value }),
+    });
+    for (const source of [
+      { value: 'hf', label: 'Gratis (Wan 2.2 di Hugging Face) — tanpa kunci' },
+      { value: 'gemini', label: 'Google Veo — butuh kunci berakses Veo' },
+    ]) {
+      sourceSelect.append(
+        el('option', { value: source.value, selected: (current.videoProvider || 'hf') === source.value }, [source.label])
+      );
+    }
+
     rows.push(
+      el('div', { class: 'field', style: 'margin-top:14px' }, [
+        el('label', {}, ['Sumber video']),
+        sourceSelect,
+        el('p', { class: 'field__hint' }, [
+          'Pilih "Gratis" kalau kunci Google Anda belum punya akses Veo. Layanan gratis ini publik dan tanpa kunci, kualitasnya lebih rendah dari Veo.',
+        ]),
+      ]),
       el('div', { class: 'field', style: 'margin-top:14px' }, [
         el('label', {}, ['Model video']),
         videoModelSelect,
         el('p', { class: 'field__hint' }, [
-          'Nama model berubah cukup sering. Kalau muncul galat "model tidak ditemukan", ganti ke nama lain di daftar.',
+          'Dipakai saat sumber video diset ke Google Veo. Kalau muncul galat "model tidak ditemukan", ganti ke nama lain di daftar.',
         ]),
       ])
     );
@@ -205,6 +225,24 @@ function buildKeyPanel(current) {
               temperature: 0,
             });
             toast(`Kunci bekerja. Jawaban model: ${text.slice(0, 40)}`, 'success');
+
+            if (provider.id === 'gemini') {
+              // Beri tahu lebih awal apakah kunci ini bisa membuat video (Veo).
+              try {
+                const { video } = await listModels();
+                if (video.length) {
+                  toast(`Akses video (Veo) tersedia: ${video.slice(0, 3).join(', ')}`, 'success', 6000);
+                } else {
+                  toast(
+                    'Kunci bisa untuk teks, tetapi belum punya akses video (Veo). Aktifkan penagihan di Google AI Studio untuk memakai tombol "Buat video".',
+                    'error',
+                    9000
+                  );
+                }
+              } catch {
+                // Daftar model gagal dimuat; abaikan, tidak menghalangi uji kunci.
+              }
+            }
           } catch (error) {
             toast(error.message, 'error', 6000);
           } finally {

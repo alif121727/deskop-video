@@ -24,10 +24,14 @@ const MAX_BODY_BYTES = 40 * 1024 * 1024; // cukup untuk gambar acuan base64
 
 const GEMINI_HOST = 'generativelanguage.googleapis.com';
 const OPENAI_HOST = 'api.openai.com';
+// Layanan video gratis (Wan 2.2 di Hugging Face Spaces) untuk akun tanpa akses Veo.
+// Bisa diganti lewat env HF_VIDEO_SPACE kalau Space bawaan sedang sibuk/penuh.
+const HF_SPACE_HOST = process.env.HF_VIDEO_SPACE || 'upsampler-wan-2-2-14b-text-to-video.hf.space';
 const ALLOWED_VIDEO_HOSTS = new Set([
   GEMINI_HOST,
   'storage.googleapis.com',
   'generativelanguage.googleapis.com',
+  HF_SPACE_HOST,
 ]);
 
 const MIME = {
@@ -46,6 +50,8 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
   '.webmanifest': 'application/manifest+json',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
 };
 
 /* ------------------------------------------------------------------ */
@@ -294,6 +300,131 @@ async function geminiVideoFetch({ apiKey, uri }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* video gratis lewat Hugging Face Space (Wan 2.2)                     */
+/* ------------------------------------------------------------------ */
+
+/** Peta rasio aplikasi -> label dropdown milik Space. */
+const HF_ASPECT = {
+  '16:9': '16:9 (832x480)',
+  '9:16': '9:16 (480x832)',
+  '1:1': '1:1 (640x640)',
+};
+
+/** Durasi yang didukung Space (detik). */
+function hfDuration(seconds) {
+  const n = Number(seconds) || 4;
+  return Math.min(8, Math.max(2, Math.round(n)));
+}
+
+/**
+ * Mulai pembuatan video di Space. Mengembalikan event_id untuk dipantau.
+ * Tanpa kunci API: layanan ini publik dan gratis.
+ */
+async function hfVideoStart({ prompt, aspectRatio, durationSeconds, negativePrompt }) {
+  const url = `https://${HF_SPACE_HOST}/gradio_api/call/generate_video`;
+  const body = {
+    data: [
+      prompt,
+      HF_ASPECT[aspectRatio] || HF_ASPECT['16:9'],
+      4, // steps: cepat, cukup untuk pratinjau
+      negativePrompt || '',
+      hfDuration(durationSeconds),
+      1,
+      1,
+      42,
+      true, // randomize_seed
+    ],
+  };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw Object.assign(
+      new Error(`Layanan video gratis tidak merespons (HTTP ${response.status}). Coba lagi sebentar lagi.`),
+      { status: 502 }
+    );
+  }
+  const data = await response.json();
+  if (!data.event_id) {
+    throw Object.assign(new Error('Layanan video gratis tidak mengembalikan ID tugas.'), { status: 502 });
+  }
+  return data.event_id;
+}
+
+/**
+ * Pantau hasil Space. Mengembalikan { done, asset, failure } seperti Veo.
+ * Space memakai Server-Sent Events; satu permintaan bisa menahan sampai selesai.
+ */
+async function hfVideoPoll({ operationName }) {
+  const url = `https://${HF_SPACE_HOST}/gradio_api/call/generate_video/${operationName}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  let text = '';
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw Object.assign(
+        new Error(`Layanan video gratis tidak merespons (HTTP ${response.status}).`),
+        { status: 502 }
+      );
+    }
+    text = await response.text();
+  } catch (error) {
+    if (error.name === 'AbortError') return { done: false, asset: null, failure: null };
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (/event:\s*error/.test(text)) {
+    const detail = text.match(/data:\s*(.+)/)?.[1]?.trim();
+    const message =
+      !detail || detail === 'null'
+        ? 'Layanan video gratis sedang penuh (kuota GPU publik habis) atau sibuk. Tunggu beberapa menit lalu coba lagi, atau pilih sumber "Google Veo" di Pengaturan.'
+        : detail.slice(0, 400);
+    return { done: true, asset: null, failure: message };
+  }
+  if (!/event:\s*complete/.test(text)) return { done: false, asset: null, failure: null };
+
+  const payloadLine = text
+    .split(/\n/)
+    .filter((line) => line.startsWith('data:'))
+    .pop();
+  let parsed = null;
+  try {
+    parsed = JSON.parse(String(payloadLine).replace(/^data:\s*/, ''));
+  } catch {
+    return { done: true, asset: null, failure: 'Hasil video gratis tidak bisa dibaca.' };
+  }
+  const first = Array.isArray(parsed) ? parsed[0] : parsed;
+  const uri = typeof first === 'string' ? first : first?.url || first?.path;
+  if (!uri) return { done: true, asset: null, failure: 'Layanan video gratis tidak mengembalikan berkas.' };
+  return { done: true, asset: { uri, mimeType: 'video/mp4' }, failure: null };
+}
+
+/**
+ * Unduh berkas video dari sumbernya. Sumber Veo butuh kunci API; sumber
+ * layanan gratis (Hugging Face Space) tidak.
+ */
+async function fetchVideoUpstream({ apiKey, uri }) {
+  const url = assertHttpsUrl(uri, ALLOWED_VIDEO_HOSTS);
+  if (url.hostname === HF_SPACE_HOST) {
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw Object.assign(
+        new Error(`Layanan video gratis tidak bisa mengirim berkas (HTTP ${response.status}).`),
+        { status: 502 }
+      );
+    }
+    return response;
+  }
+  if (!apiKey) throw Object.assign(new Error('Kunci API wajib diisi untuk video Veo.'), { status: 400 });
+  return geminiVideoFetch({ apiKey, uri });
+}
+
+/* ------------------------------------------------------------------ */
 /* router API                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -325,8 +456,35 @@ async function handleApi(req, res, pathname) {
       return sendJson(res, 200, { text: result.text });
     }
 
+    if (pathname === '/api/ai/models') {
+      const { apiKey } = body;
+      if (!apiKey) return sendJson(res, 400, { error: 'Kunci API belum diisi.' });
+      const response = await fetch(
+        `https://${GEMINI_HOST}/v1beta/models?pageSize=200`,
+        { headers: { 'x-goog-api-key': apiKey } }
+      );
+      if (!response.ok) throw Object.assign(new Error(await providerError(response)), { status: 502 });
+      const data = await response.json();
+      const models = data.models || [];
+      const names = (list) => list.map((m) => String(m.name).replace(/^models\//, ''));
+      const has = (m, method) => (m.supportedGenerationMethods || []).includes(method);
+      return sendJson(res, 200, {
+        // Veo tidak selalu muncul di ListModels; sediakan juga nama yang dikenal.
+        video: names(models.filter((m) => has(m, 'predictLongRunning') || /veo/i.test(m.name))),
+        text: names(models.filter((m) => has(m, 'generateContent'))),
+      });
+    }
+
     if (pathname === '/api/ai/video/start') {
       const { provider = 'gemini', apiKey, model } = body;
+      if (!body.prompt) return sendJson(res, 400, { error: 'Prompt kosong.' });
+
+      // Layanan gratis (Wan 2.2) tidak butuh kunci API.
+      if (provider === 'hf') {
+        const operationName = await hfVideoStart(body);
+        return sendJson(res, 200, { operationName, provider: 'hf' });
+      }
+
       if (!apiKey) return sendJson(res, 400, { error: 'Kunci API belum diisi.' });
       if (provider !== 'gemini') {
         return sendJson(res, 400, {
@@ -334,7 +492,6 @@ async function handleApi(req, res, pathname) {
             'Pembuatan video hanya didukung lewat Google Gemini/Veo. Untuk penyedia lain, salin prompt lalu tempel di tool video pilihan Anda.',
         });
       }
-      if (!body.prompt) return sendJson(res, 400, { error: 'Prompt kosong.' });
       const response = await geminiVideoStart({ apiKey, model, ...body });
       if (!response.ok) throw Object.assign(new Error(await providerError(response)), { status: 502 });
       const data = await response.json();
@@ -342,18 +499,21 @@ async function handleApi(req, res, pathname) {
     }
 
     if (pathname === '/api/ai/video/poll') {
-      const { apiKey, operationName } = body;
-      if (!apiKey || !operationName) {
-        return sendJson(res, 400, { error: 'Kunci API dan nama operasi wajib diisi.' });
+      const { apiKey, operationName, provider = 'gemini' } = body;
+      if (!operationName) return sendJson(res, 400, { error: 'Nama operasi wajib diisi.' });
+      if (provider === 'hf') {
+        const result = await hfVideoPoll({ operationName });
+        return sendJson(res, 200, result);
       }
+      if (!apiKey) return sendJson(res, 400, { error: 'Kunci API dan nama operasi wajib diisi.' });
       const result = await geminiVideoPoll({ apiKey, operationName });
       return sendJson(res, 200, result);
     }
 
     if (pathname === '/api/ai/video/fetch') {
       const { apiKey, uri } = body;
-      if (!apiKey || !uri) return sendJson(res, 400, { error: 'Kunci API dan URI video wajib diisi.' });
-      const upstream = await geminiVideoFetch({ apiKey, uri });
+      if (!uri) return sendJson(res, 400, { error: 'URI video wajib diisi.' });
+      const upstream = await fetchVideoUpstream({ apiKey, uri });
       // Baca seluruh isi lebih dulu. Kalau unduhan gagal di tengah jalan, error
       // ditangani catch di bawah tanpa terlanjur mengirim header 200.
       const arrayBuffer = await upstream.arrayBuffer();
