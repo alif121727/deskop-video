@@ -536,6 +536,23 @@ async function handleApi(req, res, pathname) {
 /* berkas statis                                                       */
 /* ------------------------------------------------------------------ */
 
+// Cari berkas nyata untuk sebuah path: file apa adanya, atau index.html di
+// dalam folder. Kembalikan null kalau tidak ada (pemanggil pakai fallback SPA).
+async function resolveStaticFile(normalized) {
+  try {
+    const stat = await fs.promises.stat(normalized);
+    if (stat.isFile()) return { filePath: normalized, stat };
+    if (stat.isDirectory()) {
+      const indexPath = path.join(normalized, 'index.html');
+      const indexStat = await fs.promises.stat(indexPath);
+      if (indexStat.isFile()) return { filePath: indexPath, stat: indexStat };
+    }
+  } catch {
+    /* tidak ada */
+  }
+  return null;
+}
+
 function serveStatic(req, res, pathname) {
   const decoded = pathname === '/' ? 'index.html' : safeDecode(pathname);
   if (decoded === null) {
@@ -543,27 +560,26 @@ function serveStatic(req, res, pathname) {
     return res.end('Alamat berkas tidak valid.');
   }
   const relative = decoded.replace(/^\/+/, '');
-  const target = path.join(PUBLIC_DIR, relative);
-  const normalized = path.normalize(target);
+  const normalized = path.normalize(path.join(PUBLIC_DIR, relative));
 
   if (!normalized.startsWith(PUBLIC_DIR)) {
     res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
     return res.end('Akses ditolak.');
   }
 
-  fs.stat(normalized, (error, stat) => {
-    const filePath = !error && stat.isFile() ? normalized : path.join(PUBLIC_DIR, 'index.html');
-    fs.stat(filePath, (statError, fileStat) => {
-      if (statError || !fileStat.isFile()) {
+  resolveStaticFile(normalized)
+    .then((found) => found || resolveStaticFile(path.join(PUBLIC_DIR, 'index.html')))
+    .then((found) => {
+      if (!found) {
         res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
         return res.end('Berkas tidak ditemukan.');
       }
-
+      const { filePath, stat } = found;
       const extension = path.extname(filePath).toLowerCase();
       const contentType = MIME[extension] || 'application/octet-stream';
       const isCode = ['.js', '.mjs', '.css', '.html'].includes(extension);
       const isMedia = ['.mp4', '.webm'].includes(extension);
-      const etag = `W/"${fileStat.size.toString(16)}-${fileStat.mtimeMs.toString(16)}"`;
+      const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`;
 
       // Berkas kode selalu divalidasi ulang supaya perubahan langsung terlihat,
       // tanpa memaksa unduh ulang ketika isinya sebenarnya sama.
@@ -576,8 +592,15 @@ function serveStatic(req, res, pathname) {
         'content-type': contentType,
         'cache-control': isCode ? 'no-cache' : 'public, max-age=600',
         etag,
-        'last-modified': fileStat.mtime.toUTCString(),
+        'last-modified': stat.mtime.toUTCString(),
       };
+
+      // ?download=1 memaksa unduhan (Content-Disposition: attachment) dengan
+      // nama berkas asli, alih-alih membuka pemutar di browser.
+      const query = (req.url || '').split('?')[1] || '';
+      if (new URLSearchParams(query).has('download')) {
+        headers['content-disposition'] = `attachment; filename="${path.basename(filePath).replace(/["\\]/g, '')}"`;
+      }
 
       // Media: dukung Range (HTTP 206) supaya pemutar bisa melompat/seek dan
       // tidak perlu memuat seluruh berkas ke memori. Kirim aliran langsung.
@@ -585,22 +608,22 @@ function serveStatic(req, res, pathname) {
         headers['accept-ranges'] = 'bytes';
         const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || '').trim());
         if (range) {
-          let start = range[1] === '' ? fileStat.size - Number(range[2]) : Number(range[1]);
-          let end = range[2] === '' || range[1] === '' ? fileStat.size - 1 : Number(range[2]);
-          if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= fileStat.size) {
-            res.writeHead(416, { 'content-range': `bytes */${fileStat.size}` });
+          const start = range[1] === '' ? stat.size - Number(range[2]) : Number(range[1]);
+          let end = range[1] === '' || range[2] === '' ? stat.size - 1 : Number(range[2]);
+          if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= stat.size) {
+            res.writeHead(416, { 'content-range': `bytes */${stat.size}` });
             return res.end();
           }
-          end = Math.min(end, fileStat.size - 1);
+          end = Math.min(end, stat.size - 1);
           res.writeHead(206, {
             ...headers,
-            'content-range': `bytes ${start}-${end}/${fileStat.size}`,
+            'content-range': `bytes ${start}-${end}/${stat.size}`,
             'content-length': end - start + 1,
           });
           if (req.method === 'HEAD') return res.end();
           return fs.createReadStream(filePath, { start, end }).pipe(res);
         }
-        res.writeHead(200, { ...headers, 'content-length': fileStat.size });
+        res.writeHead(200, { ...headers, 'content-length': stat.size });
         if (req.method === 'HEAD') return res.end();
         return fs.createReadStream(filePath).pipe(res);
       }
@@ -613,8 +636,15 @@ function serveStatic(req, res, pathname) {
         res.writeHead(200, headers);
         res.end(buffer);
       });
+    })
+    .catch(() => {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('Terjadi kesalahan pada server.');
+      } else {
+        res.destroy();
+      }
     });
-  });
 }
 
 const server = http.createServer((req, res) => {
